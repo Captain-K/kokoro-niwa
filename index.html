@@ -203,7 +203,12 @@ body {
   <button class="tool-btn" data-tool="moss">🌿 苔</button>
   <div class="tool-separator"></div>
   <button class="tool-btn" data-tool="select">👆 選択</button>
+  <button class="tool-btn" id="btn-delete" style="display:none">🗑️ 削除</button>
   <button class="tool-btn" id="btn-reset">🔄 リセット</button>
+  <div class="tool-separator"></div>
+  <span id="sand-depth-control" style="display:none;align-items:center;gap:4px;font-size:12px;color:#7a6a5a">
+    深さ:<input type="range" id="sand-depth" min="1" max="15" value="4" style="width:60px">
+  </span>
   <div class="tool-separator"></div>
   <button class="tool-btn" id="btn-ai-explain">🧙 AI解説</button>
   <button class="tool-btn" id="btn-summon">👤 福岡さん召喚</button>
@@ -253,7 +258,7 @@ const ROCK_COLOR_MIN = 0x6b6760;    // 岩の色（暗い方）
 const ROCK_COLOR_MAX = 0x8a7f72;    // 岩の色（明るい方）
 const MAX_ROCKS = 20;               // 岩の最大配置数
 const SAND_DEFORM_RADIUS = 0.4;    // 砂紋の影響半径（大きいほど太い線）
-const SAND_DEFORM_DEPTH = -0.12;   // 砂紋の最大凹み量
+let sandDeformDepth = -0.04;       // 砂紋の最大凹み量（スライダーで変更可）
 const MOSS_COLOR = 0x4a6b3a;       // 苔の色
 const MOSS_RADIUS = 0.12;          // 苔の球のサイズ
 const MOSS_CLUSTER_SIZE = 5;       // 苔1箇所あたりの球の数
@@ -419,7 +424,10 @@ function onCanvasClick(event) {
         selectedRock = rockData;
         selectedRockOriginalColor = hitMesh.material.color.clone();
         hitMesh.material.color.set(SELECT_COLOR);
+        document.getElementById('btn-delete').style.display = 'inline-block';
       }
+    } else {
+      document.getElementById('btn-delete').style.display = 'none';
     }
   }
 }
@@ -490,7 +498,7 @@ function deformSand(cx, cz, radius, depth) {
 }
 
 function drawSandGroove(cx, cz) {
-  deformSand(cx, cz, SAND_DEFORM_RADIUS, SAND_DEFORM_DEPTH);
+  deformSand(cx, cz, SAND_DEFORM_RADIUS, sandDeformDepth);
   sandPatterns++;
   playSandSound();
 }
@@ -656,7 +664,7 @@ const HINTS = {
   rock: '左クリック: 岩を置く ／ 右ドラッグ: 回転 ／ スクロール: ズーム',
   sand: '左ドラッグ: 砂紋を描く ／ 右ドラッグ: 回転',
   moss: '左クリック: 苔を置く ／ 右ドラッグ: 回転',
-  select: '右ドラッグ: 回転 ／ スクロール: ズーム'
+  select: '岩をクリックして選択 → 🗑️削除ボタンで消せる'
 };
 document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -666,6 +674,8 @@ document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
     const container = document.getElementById('canvas-container');
     container.style.cursor = currentTool === 'sand' ? 'crosshair' : 'default';
     document.getElementById('hint').textContent = HINTS[currentTool] || '';
+    // 砂紋スライダー表示切替
+    document.getElementById('sand-depth-control').style.display = currentTool === 'sand' ? 'inline-flex' : 'none';
   });
 });
 
@@ -796,6 +806,22 @@ function playBellSound() {
 // === BUTTON HANDLERS ===
 document.getElementById('btn-ai-explain').addEventListener('click', function() { explainGarden(); });
 
+// 砂紋の深さスライダー
+document.getElementById('sand-depth').addEventListener('input', function(e) {
+  sandDeformDepth = -(e.target.value / 100);
+});
+
+// 選択した岩の削除
+document.getElementById('btn-delete').addEventListener('click', function() {
+  if (!selectedRock) return;
+  scene.remove(selectedRock.mesh);
+  rocks = rocks.filter(r => r !== selectedRock);
+  selectedRock = null;
+  selectedRockOriginalColor = null;
+  document.getElementById('btn-delete').style.display = 'none';
+  setAIText('岩を取り除きました。');
+});
+
 // === RESET ===
 document.getElementById('btn-reset').addEventListener('click', function() {
   // 岩を削除
@@ -894,7 +920,7 @@ function startAvatarWalk() {
   if (avatarReady && avatarModel) {
     fukuokaAvatar = avatarModel.clone();
     // スケール調整（GLBモデルが大きすぎる場合）
-    fukuokaAvatar.scale.set(0.8, 0.8, 0.8);
+    fukuokaAvatar.scale.set(0.4, 0.4, 0.4);
     fukuokaAvatar.position.set(0, 0, 3.5);
     // カメラの方を向く
     fukuokaAvatar.rotation.y = Math.atan2(5, 5);
