@@ -882,6 +882,7 @@ let avatarModel = null;
 let danceModel = null;
 let danceClip = null;
 let avatarScale = 0.01;
+let danceAvatarScale = 0.01;
 let avatarReady = false;
 let walkAction = null;
 let danceAction = null;
@@ -924,7 +925,12 @@ function preloadAvatar() {
       }
     });
     danceClip = gltf.animations && gltf.animations.length > 0 ? gltf.animations[0] : null;
-    console.log('dance.glb loaded, animations:', gltf.animations ? gltf.animations.length : 0);
+    // dance.glbのスケールも計算
+    var dBox = new THREE.Box3().setFromObject(danceModel);
+    var dSize = new THREE.Vector3();
+    dBox.getSize(dSize);
+    danceAvatarScale = 1.2 / dSize.y;
+    console.log('dance.glb loaded, size:', dSize.y.toFixed(2), '→ scale:', danceAvatarScale.toFixed(4));
   }, undefined, function(err) {
     console.warn('dance.glb load failed:', err);
   });
@@ -1044,7 +1050,7 @@ document.getElementById('btn-photo').addEventListener('click', function() {
     var rot = fukuokaAvatar.rotation.clone();
     scene.remove(fukuokaAvatar);
     fukuokaAvatar = danceModel.clone();
-    fukuokaAvatar.scale.set(avatarScale, avatarScale, avatarScale);
+    fukuokaAvatar.scale.set(danceAvatarScale, danceAvatarScale, danceAvatarScale);
     fukuokaAvatar.position.copy(pos);
     fukuokaAvatar.rotation.copy(rot);
     scene.add(fukuokaAvatar);
