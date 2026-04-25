@@ -225,8 +225,8 @@ body {
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-// === API KEY ===
-const API_KEY = 'YOUR_KEY_HERE';
+// === API KEY (URLパラメータ ?key=xxx または直書き) ===
+const API_KEY = new URLSearchParams(window.location.search).get('key') || 'YOUR_KEY_HERE';
 
 // === GAME PARAMETERS ===
 const SAND_SIZE = 8;                // 砂地の一辺の長さ
@@ -859,9 +859,20 @@ let avatarMixer = null;
 let walkClip = null;
 let danceClip = null;
 let avatarModel = null;
+let avatarScale = 0.01; // 読み込み後に自動計算
 let avatarReady = false;
 let walkAction = null;
 let danceAction = null;
+
+function calcAvatarScale(model) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  // 人型の高さを1.2ユニットにする（庭8x8に対して程よいサイズ）
+  const targetHeight = 1.2;
+  avatarScale = targetHeight / size.y;
+  console.log('avatar native size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2), '→ scale:', avatarScale.toFixed(4));
+}
 
 // 事前読み込み
 function preloadAvatar() {
@@ -873,16 +884,21 @@ function preloadAvatar() {
         child.receiveShadow = true;
       }
     });
-    walkClip = gltf.animations[0] || null;
+    walkClip = gltf.animations && gltf.animations.length > 0 ? gltf.animations[0] : null;
+    calcAvatarScale(avatarModel);
     avatarReady = true;
-  }, undefined, function(err) {
-    console.warn('walk.glb load failed, using fallback');
+    console.log('walk.glb loaded, animations:', gltf.animations ? gltf.animations.length : 0);
+  }, function(xhr) {
+    if (xhr.total > 0) console.log('walk.glb ' + Math.round(xhr.loaded / xhr.total * 100) + '%');
+  }, function(err) {
+    console.warn('walk.glb load failed:', err);
   });
 
   gltfLoader.load('rig/dance.glb', function(gltf) {
-    danceClip = gltf.animations[0] || null;
+    danceClip = gltf.animations && gltf.animations.length > 0 ? gltf.animations[0] : null;
+    console.log('dance.glb loaded, animations:', gltf.animations ? gltf.animations.length : 0);
   }, undefined, function(err) {
-    console.warn('dance.glb load failed');
+    console.warn('dance.glb load failed:', err);
   });
 }
 
@@ -919,9 +935,9 @@ function startAvatarWalk() {
 
   if (avatarReady && avatarModel) {
     fukuokaAvatar = avatarModel.clone();
-    fukuokaAvatar.scale.set(0.08, 0.08, 0.08);
-    fukuokaAvatar.position.set(0, 0, 3.8);
-    // カメラ方向を向く（カメラは(5,5,5)）
+    fukuokaAvatar.scale.set(avatarScale, avatarScale, avatarScale);
+    fukuokaAvatar.position.set(0, 0, 3.5);
+    // カメラ方向を向く
     fukuokaAvatar.rotation.y = Math.PI * 0.75;
     scene.add(fukuokaAvatar);
 
