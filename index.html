@@ -226,10 +226,37 @@ body {
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
-// === API KEY ===
-// key.js から読み込み。ファイルがなければURLパラメータ ?key=xxx を使用
-var API_KEY = typeof API_KEY_VALUE !== 'undefined' ? API_KEY_VALUE :
-  new URLSearchParams(window.location.search).get('key') || '';
+// === API ENDPOINT ===
+// Vercel: /api/gemini（環境変数GEMINI_API_KEYを使用）
+// ローカル: key.jsに API_KEY_VALUE を設定（フォールバックでGoogle直叩き）
+const API_ENDPOINT = '/api/gemini';
+var API_KEY = typeof API_KEY_VALUE !== 'undefined' ? API_KEY_VALUE : '';
+
+function getApiUrl() {
+  if (API_KEY) {
+    return `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+  }
+  return API_ENDPOINT;
+}
+
+async function callGemini(promptBody, timeout) {
+  const url = getApiUrl();
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), timeout || 5000);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(promptBody),
+    signal: controller.signal
+  });
+  clearTimeout(tid);
+  if (!response.ok) throw new Error('API error');
+  return await response.json();
+}
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+
 
 // === GAME PARAMETERS ===
 const SAND_SIZE = 8;                // 砂地の一辺の長さ
@@ -734,7 +761,9 @@ async function explainGarden() {
 
   const prompt = buildExplainPrompt(sceneState);
 
-  if (API_KEY === 'YOUR_KEY_HERE' || !API_KEY) {
+  if (!API_KEY && window.location.hostname !== 'localhost') {
+    // Vercel環境（/api/geminiを使用）
+  } else if (!API_KEY && window.location.hostname === 'localhost') {
     setTimeout(() => {
       const msg = FALLBACK_EXPLANATIONS[Math.floor(Math.random() * FALLBACK_EXPLANATIONS.length)];
       typewriteAIText(msg);
@@ -747,25 +776,10 @@ async function explainGarden() {
   aiAbortController = new AbortController();
 
   try {
-    const timeoutId = setTimeout(() => aiAbortController.abort(), 5000);
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.9, maxOutputTokens: 200 }
-        }),
-        signal: aiAbortController.signal
-      }
-    );
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) throw new Error('API error');
-    const data = await response.json();
+    const data = await callGemini({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.9, maxOutputTokens: 200 }
+    }, 5000);
     const text = data.candidates[0].content.parts[0].text.trim();
     typewriteAIText(text);
     playBellSound();
@@ -1062,20 +1076,10 @@ async function nameGarden() {
   }
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 1.0, maxOutputTokens: 30 }
-        }),
-        signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(3000) : undefined
-      }
-    );
-    if (!response.ok) throw new Error('API error');
-    const data = await response.json();
+    const data = await callGemini({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 1.0, maxOutputTokens: 30 }
+    }, 3000);
     let name = data.candidates[0].content.parts[0].text.trim();
     // 「○○庭」形式に整形
     name = name.replace(/^[「『【\s]+|[」』】\s.]+$/g, '');

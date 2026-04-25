@@ -8,7 +8,11 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8082/index.html)",
       "Bash(git init *)",
       "Bash(git rm *)",
-      "Bash(file /Users/kurogi/work/HL/aihackason/honban2026/rig/*.glb)"
+      "Bash(file /Users/kurogi/work/HL/aihackason/honban2026/rig/*.glb)",
+      "Bash(gh repo *)",
+      "Bash(npx vercel *)",
+      "Bash(git push *)",
+      "Bash(vercel *)"
     ]
   }
 }
