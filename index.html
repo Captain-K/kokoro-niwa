@@ -761,9 +761,7 @@ async function explainGarden() {
 
   const prompt = buildExplainPrompt(sceneState);
 
-  if (!API_KEY && window.location.hostname !== 'localhost') {
-    // Vercel環境（/api/geminiを使用）
-  } else if (!API_KEY && window.location.hostname === 'localhost') {
+  if (!API_KEY && window.location.hostname === 'localhost') {
     setTimeout(() => {
       const msg = FALLBACK_EXPLANATIONS[Math.floor(Math.random() * FALLBACK_EXPLANATIONS.length)];
       typewriteAIText(msg);
@@ -850,12 +848,16 @@ document.getElementById('btn-reset').addEventListener('click', function() {
   // 苔を削除
   mossObjects.forEach(m => scene.remove(m.group));
   mossObjects = [];
-  // 砂紋をリセット（頂点を平坦に）
+  // 砂紋をリセット（頂点＋色を平坦に）
   const pos = sandGeometry.attributes.position;
+  const col = sandGeometry.attributes.color;
+  const baseCol = new THREE.Color(SAND_COLOR);
   for (let i = 0; i < pos.count; i++) {
     pos.setY(i, 0);
+    col.setXYZ(i, baseCol.r, baseCol.g, baseCol.b);
   }
   pos.needsUpdate = true;
+  col.needsUpdate = true;
   sandGeometry.computeVertexNormals();
   sandPatterns = 0;
   // 選択解除
@@ -1010,12 +1012,18 @@ function updateAvatarAnimation(dt) {
       setAIText('心より、この庭を拝見いたしました。見事でございます。');
     }
   } else if (avatarAnimPhase === 'dance') {
-    // ダンスアニメーションはmixerが自動再生、5秒後に終了
-    if (avatarAnimTime > 8) {
+    // ダンスは写真撮影フローがタイマーで制御
+  } else if (avatarAnimPhase === 'bow') {
+    // 一礼（GLBモデル全体を前傾）
+    var bowDur = 1.2;
+    var t = avatarAnimTime / bowDur;
+    if (t < 0.4) {
+      fukuokaAvatar.rotation.x = (t / 0.4) * 0.5;
+    } else if (t < 1.0) {
+      fukuokaAvatar.rotation.x = (1 - (t - 0.4) / 0.6) * 0.5;
+    } else {
+      fukuokaAvatar.rotation.x = 0;
       avatarAnimPhase = 'idle';
-      if (danceAction) danceAction.stop();
-      if (walkAction) { walkAction.paused = false; walkAction.play(); }
-      setAIText('素晴らしい演技でした。お見事！');
     }
   } else if (avatarAnimPhase === 'idle') {
     fukuokaAvatar.position.y = Math.sin(avatarAnimTime * 2) * 0.005;
@@ -1024,30 +1032,54 @@ function updateAvatarAnimation(dt) {
 
 preloadAvatar();
 
-// === PHOTO (Screenshot + Dance) ===
+// === PHOTO (Dance → Bow → Shutter → Save) ===
 let shutterSound = null;
+let photoBusy = false;
+
 document.getElementById('btn-photo').addEventListener('click', function() {
-  // アバターがいればブレイクダンス開始
-  if (fukuokaAvatar && avatarAnimPhase !== 'dance') {
-    startAvatarDance();
+  if (photoBusy) return;
+  photoBusy = true;
+
+  // Step1: ブレイクダンス開始
+  if (fukuokaAvatar && danceClip && avatarMixer) {
+    if (walkAction) walkAction.stop();
+    danceAction = avatarMixer.clipAction(danceClip);
+    danceAction.setLoop(THREE.LoopRepeat);
+    danceAction.reset();
+    danceAction.play();
+    avatarAnimPhase = 'dance';
+    avatarAnimTime = 0;
+  } else if (fukuokaAvatar) {
+    avatarAnimPhase = 'bow';
+    avatarAnimTime = 0;
   }
-  // シャッター音
-  if (!shutterSound) {
-    shutterSound = new Audio('audio/shutter.mp3');
-    shutterSound.volume = 0.6;
-  }
-  shutterSound.currentTime = 0;
-  shutterSound.play().catch(() => {});
-  // 少し待ってからスクリーンショット（ダンスポーズが決まった瞬間）
+  setAIText('福岡俊弘様、ブレイクダンスを披露！');
+
+  // Step2: 3秒後にダンス停止→一礼
   setTimeout(function() {
-    renderer.render(scene, camera);
-    const dataURL = renderer.domElement.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = (gardenName || '心庭') + '_記念撮影.png';
-    link.href = dataURL;
-    link.click();
-    setAIText('記念撮影が保存されました。SNSでシェアしてください！');
-  }, 800);
+    if (danceAction) danceAction.stop();
+    avatarAnimPhase = 'bow';
+    avatarAnimTime = 0;
+    setAIText('……');
+
+    // Step3: 一礼後にシャッター音＋写真
+    setTimeout(function() {
+      if (!shutterSound) {
+        shutterSound = new Audio('audio/shutter.mp3');
+        shutterSound.volume = 0.6;
+      }
+      shutterSound.currentTime = 0;
+      shutterSound.play().catch(() => {});
+      renderer.render(scene, camera);
+      const dataURL = renderer.domElement.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = (gardenName || '心庭') + '_記念撮影.png';
+      link.href = dataURL;
+      link.click();
+      setAIText('記念撮影が保存されました。SNSでシェアしてください！');
+      photoBusy = false;
+    }, 1500);
+  }, 3000);
 });
 
 // === GARDEN NAMING ===
