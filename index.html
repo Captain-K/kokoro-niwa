@@ -878,9 +878,9 @@ document.getElementById('btn-reset').addEventListener('click', function() {
 const gltfLoader = new THREE.GLTFLoader();
 let avatarMixer = null;
 let walkClip = null;
-let danceClip = null;
 let avatarModel = null;
-let avatarScale = 0.01; // 読み込み後に自動計算
+let danceModel = null;
+let avatarScale = 0.01;
 let avatarReady = false;
 let walkAction = null;
 let danceAction = null;
@@ -889,8 +889,7 @@ function calcAvatarScale(model) {
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3();
   box.getSize(size);
-  // 人型の高さを1.2ユニットにする（庭8x8に対して程よいサイズ）
-  const targetHeight = 1.2;
+  var targetHeight = 1.2;
   avatarScale = targetHeight / size.y;
   console.log('avatar native size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2), '→ scale:', avatarScale.toFixed(4));
 }
@@ -916,7 +915,13 @@ function preloadAvatar() {
   });
 
   gltfLoader.load('rig/dance.glb', function(gltf) {
-    danceClip = gltf.animations && gltf.animations.length > 0 ? gltf.animations[0] : null;
+    danceModel = gltf.scene;
+    danceModel.traverse(function(child) {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
     console.log('dance.glb loaded, animations:', gltf.animations ? gltf.animations.length : 0);
   }, undefined, function(err) {
     console.warn('dance.glb load failed:', err);
@@ -982,19 +987,6 @@ function startAvatarWalk() {
   playBellSound();
 }
 
-function startAvatarDance() {
-  if (!fukuokaAvatar) return;
-  if (danceClip && avatarMixer) {
-    if (walkAction) walkAction.stop();
-    danceAction = avatarMixer.clipAction(danceClip);
-    danceAction.setLoop(THREE.LoopRepeat);
-    danceAction.play();
-  }
-  avatarAnimPhase = 'dance';
-  avatarAnimTime = 0;
-  setAIText('福岡俊弘様、ブレイクダンスを披露！📸');
-}
-
 document.getElementById('btn-summon').addEventListener('click', startAvatarWalk);
 
 function updateAvatarAnimation(dt) {
@@ -1040,24 +1032,38 @@ document.getElementById('btn-photo').addEventListener('click', function() {
   if (photoBusy) return;
   photoBusy = true;
 
-  // Step1: ブレイクダンス開始
-  if (fukuokaAvatar && danceClip && avatarMixer) {
-    if (walkAction) walkAction.stop();
-    danceAction = avatarMixer.clipAction(danceClip);
-    danceAction.setLoop(THREE.LoopRepeat);
-    danceAction.reset();
-    danceAction.play();
-    avatarAnimPhase = 'dance';
-    avatarAnimTime = 0;
+  // Step1: ブレイクダンス（dance.glbのモデル＋アニメに差し替え）
+  if (fukuokaAvatar && danceModel) {
+    var pos = fukuokaAvatar.position.clone();
+    var rot = fukuokaAvatar.rotation.clone();
+    scene.remove(fukuokaAvatar);
+    fukuokaAvatar = danceModel.clone();
+    fukuokaAvatar.scale.set(avatarScale, avatarScale, avatarScale);
+    fukuokaAvatar.position.copy(pos);
+    fukuokaAvatar.rotation.copy(rot);
+    scene.add(fukuokaAvatar);
+
+    avatarMixer = new THREE.AnimationMixer(fukuokaAvatar);
+    // dance.glbのアニメーションを使う
+    gltfLoader.load('rig/dance.glb', function(gltf) {
+      if (gltf.animations && gltf.animations.length > 0) {
+        danceAction = avatarMixer.clipAction(gltf.animations[0]);
+        danceAction.setLoop(THREE.LoopRepeat);
+        danceAction.play();
+      }
+    });
   } else if (fukuokaAvatar) {
     avatarAnimPhase = 'bow';
     avatarAnimTime = 0;
   }
+  avatarAnimPhase = 'dance';
+  avatarAnimTime = 0;
   setAIText('福岡俊弘様、ブレイクダンスを披露！');
 
   // Step2: 3秒後にダンス停止→一礼
   setTimeout(function() {
     if (danceAction) danceAction.stop();
+    if (avatarMixer) avatarMixer.stopAllAction();
     avatarAnimPhase = 'bow';
     avatarAnimTime = 0;
     setAIText('……');
