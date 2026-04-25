@@ -778,20 +778,15 @@ ${rockLines}
 2〜3文のみで返答してください。「」などの括弧は不要。`;
 }
 
-// === BELL SOUND ===
+// === COMPLETION SOUND (sukohn.mp3) ===
+let completionSound = null;
 function playBellSound() {
-  const ctx = getAudioCtx();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(880, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.8);
-  gain.gain.setValueAtTime(0.15, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 1.2);
+  if (!completionSound) {
+    completionSound = new Audio('audio/sukohn.mp3');
+    completionSound.volume = 0.5;
+  }
+  completionSound.currentTime = 0;
+  completionSound.play().catch(() => {});
 }
 
 // === BUTTON HANDLERS ===
