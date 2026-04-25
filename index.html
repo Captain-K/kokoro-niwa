@@ -880,6 +880,7 @@ let avatarMixer = null;
 let walkClip = null;
 let avatarModel = null;
 let danceModel = null;
+let danceClip = null;
 let avatarScale = 0.01;
 let avatarReady = false;
 let walkAction = null;
@@ -922,6 +923,7 @@ function preloadAvatar() {
         child.receiveShadow = true;
       }
     });
+    danceClip = gltf.animations && gltf.animations.length > 0 ? gltf.animations[0] : null;
     console.log('dance.glb loaded, animations:', gltf.animations ? gltf.animations.length : 0);
   }, undefined, function(err) {
     console.warn('dance.glb load failed:', err);
@@ -962,9 +964,9 @@ function startAvatarWalk() {
   if (avatarReady && avatarModel) {
     fukuokaAvatar = avatarModel.clone();
     fukuokaAvatar.scale.set(avatarScale, avatarScale, avatarScale);
-    // 庭の枠の外側（木枠の裏）からスタート
+    // 庭の枠の外からスタート
     fukuokaAvatar.position.set(0, 0, 4.5);
-    // カメラ方向を向いて歩いてくる
+    // カメラ方向を向いて歩く
     fukuokaAvatar.rotation.y = Math.PI * 0.75;
     scene.add(fukuokaAvatar);
 
@@ -974,7 +976,6 @@ function startAvatarWalk() {
       walkAction.play();
     }
   } else {
-    // フォールバック
     fukuokaAvatar = createFallbackAvatar();
     fukuokaAvatar.scale.set(0.5, 0.5, 0.5);
     fukuokaAvatar.position.set(0, 0, 4.5);
@@ -1002,7 +1003,7 @@ function updateAvatarAnimation(dt) {
       fukuokaAvatar.position.z = 0.5;
       avatarAnimPhase = 'idle';
       if (walkAction) walkAction.paused = true;
-      // カメラ(5,5,5)の方を正面で向く
+      // カメラの正面を向く
       fukuokaAvatar.rotation.y = Math.atan2(
         camera.position.x - fukuokaAvatar.position.x,
         camera.position.z - fukuokaAvatar.position.z
@@ -1010,9 +1011,8 @@ function updateAvatarAnimation(dt) {
       setAIText('心より、この庭を拝見いたしました。見事でございます。');
     }
   } else if (avatarAnimPhase === 'dance') {
-    // ダンスは写真撮影フローがタイマーで制御
+    // 写真撮影フローがタイマーで制御
   } else if (avatarAnimPhase === 'bow') {
-    // 一礼（GLBモデル全体を前傾）
     var bowDur = 1.2;
     var t = avatarAnimTime / bowDur;
     if (t < 0.4) {
@@ -1039,7 +1039,7 @@ document.getElementById('btn-photo').addEventListener('click', function() {
   photoBusy = true;
 
   // Step1: ブレイクダンス（dance.glbのモデル＋アニメに差し替え）
-  if (fukuokaAvatar && danceModel) {
+  if (fukuokaAvatar && danceModel && danceClip) {
     var pos = fukuokaAvatar.position.clone();
     var rot = fukuokaAvatar.rotation.clone();
     scene.remove(fukuokaAvatar);
@@ -1050,14 +1050,10 @@ document.getElementById('btn-photo').addEventListener('click', function() {
     scene.add(fukuokaAvatar);
 
     avatarMixer = new THREE.AnimationMixer(fukuokaAvatar);
-    // dance.glbのアニメーションを使う
-    gltfLoader.load('rig/dance.glb', function(gltf) {
-      if (gltf.animations && gltf.animations.length > 0) {
-        danceAction = avatarMixer.clipAction(gltf.animations[0]);
-        danceAction.setLoop(THREE.LoopRepeat);
-        danceAction.play();
-      }
-    });
+    danceAction = avatarMixer.clipAction(danceClip);
+    danceAction.setLoop(THREE.LoopRepeat);
+    danceAction.reset();
+    danceAction.play();
   } else if (fukuokaAvatar) {
     avatarAnimPhase = 'bow';
     avatarAnimTime = 0;
