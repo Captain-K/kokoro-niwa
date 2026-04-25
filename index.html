@@ -937,7 +937,16 @@ function updateAvatarAnimation(dt) {
 }
 
 // === PHOTO (Screenshot) ===
+let shutterSound = null;
 document.getElementById('btn-photo').addEventListener('click', function() {
+  // シャッター音
+  if (!shutterSound) {
+    shutterSound = new Audio('audio/shutter.mp3');
+    shutterSound.volume = 0.6;
+  }
+  shutterSound.currentTime = 0;
+  shutterSound.play().catch(() => {});
+  // スクリーンショット
   renderer.render(scene, camera);
   const dataURL = renderer.domElement.toDataURL('image/png');
   const link = document.createElement('a');
