@@ -962,8 +962,9 @@ function startAvatarWalk() {
   if (avatarReady && avatarModel) {
     fukuokaAvatar = avatarModel.clone();
     fukuokaAvatar.scale.set(avatarScale, avatarScale, avatarScale);
-    fukuokaAvatar.position.set(0, 0, 3.5);
-    // カメラ方向を向く
+    // 庭の枠の外側（木枠の裏）からスタート
+    fukuokaAvatar.position.set(0, 0, 4.5);
+    // カメラ方向を向いて歩いてくる
     fukuokaAvatar.rotation.y = Math.PI * 0.75;
     scene.add(fukuokaAvatar);
 
@@ -976,8 +977,8 @@ function startAvatarWalk() {
     // フォールバック
     fukuokaAvatar = createFallbackAvatar();
     fukuokaAvatar.scale.set(0.5, 0.5, 0.5);
-    fukuokaAvatar.position.set(0, 0, 3.8);
-    fukuokaAvatar.lookAt(5, 0, 5);
+    fukuokaAvatar.position.set(0, 0, 4.5);
+    fukuokaAvatar.rotation.y = Math.PI * 0.75;
     scene.add(fukuokaAvatar);
   }
 
@@ -997,10 +998,15 @@ function updateAvatarAnimation(dt) {
   if (avatarAnimPhase === 'walk') {
     const speed = 1.5;
     fukuokaAvatar.position.z -= speed * dt;
-    if (fukuokaAvatar.position.z <= 0) {
-      fukuokaAvatar.position.z = 0;
+    if (fukuokaAvatar.position.z <= 0.5) {
+      fukuokaAvatar.position.z = 0.5;
       avatarAnimPhase = 'idle';
       if (walkAction) walkAction.paused = true;
+      // カメラ(5,5,5)の方を正面で向く
+      fukuokaAvatar.rotation.y = Math.atan2(
+        camera.position.x - fukuokaAvatar.position.x,
+        camera.position.z - fukuokaAvatar.position.z
+      );
       setAIText('心より、この庭を拝見いたしました。見事でございます。');
     }
   } else if (avatarAnimPhase === 'dance') {
