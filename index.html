@@ -323,11 +323,22 @@ function initScene() {
   const sandMaterial = new THREE.MeshStandardMaterial({
     color: SAND_COLOR,
     roughness: 0.9,
-    metalness: 0.0
+    metalness: 0.0,
+    vertexColors: true
   });
   sandMesh = new THREE.Mesh(sandGeometry, sandMaterial);
   sandMesh.receiveShadow = true;
   scene.add(sandMesh);
+  // vertex color初期化（砂地の色で塗る）
+  const vCount = sandGeometry.attributes.position.count;
+  const colors = new Float32Array(vCount * 3);
+  const baseCol = new THREE.Color(SAND_COLOR);
+  for (let i = 0; i < vCount; i++) {
+    colors[i * 3] = baseCol.r;
+    colors[i * 3 + 1] = baseCol.g;
+    colors[i * 3 + 2] = baseCol.b;
+  }
+  sandGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   // Wooden frame (4 sides)
   const frameMat = new THREE.MeshStandardMaterial({ color: FRAME_COLOR, roughness: 0.85 });
@@ -448,8 +459,11 @@ function placeRock(x, z) {
 }
 
 // === SAND PATTERN DRAWING ===
+const GROOVE_COLOR = new THREE.Color(0x8c7a5a); // 砂紋の濃い色
 function deformSand(cx, cz, radius, depth) {
   const pos = sandGeometry.attributes.position;
+  const col = sandGeometry.attributes.color;
+  const baseCol = new THREE.Color(SAND_COLOR);
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
     const vz = pos.getZ(i);
@@ -460,9 +474,16 @@ function deformSand(cx, cz, radius, depth) {
       const t = 1 - dist / radius;
       const currentY = pos.getY(i);
       pos.setY(i, currentY + depth * t * t);
+      // 溝の中心ほど濃い色に
+      const blend = t * t;
+      const r = baseCol.r * (1 - blend) + GROOVE_COLOR.r * blend;
+      const g = baseCol.g * (1 - blend) + GROOVE_COLOR.g * blend;
+      const b = baseCol.b * (1 - blend) + GROOVE_COLOR.b * blend;
+      col.setXYZ(i, r, g, b);
     }
   }
   pos.needsUpdate = true;
+  col.needsUpdate = true;
   sandGeometry.computeVertexNormals();
 }
 
