@@ -380,18 +380,35 @@ function initScene() {
 }
 
 function onCanvasClick(event) {
-  if (currentTool !== 'rock') return;
-
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObject(sandMesh);
-  if (hits.length === 0) return;
 
-  const point = hits[0].point;
-  placeRock(point.x, point.z);
+  if (currentTool === 'rock') {
+    const hits = raycaster.intersectObject(sandMesh);
+    if (hits.length > 0) placeRock(hits[0].point.x, hits[0].point.z);
+  } else if (currentTool === 'moss') {
+    const hits = raycaster.intersectObject(sandMesh);
+    if (hits.length > 0) placeMoss(hits[0].point.x, hits[0].point.z);
+  } else if (currentTool === 'select') {
+    if (selectedRock) {
+      selectedRock.mesh.material.color.copy(selectedRockOriginalColor);
+      selectedRock = null;
+      selectedRockOriginalColor = null;
+    }
+    const rockMeshes = rocks.map(r => r.mesh);
+    const hits = raycaster.intersectObjects(rockMeshes);
+    if (hits.length > 0) {
+      const hitMesh = hits[0].object;
+      const rockData = rocks.find(r => r.mesh === hitMesh);
+      if (rockData) {
+        selectedRock = rockData;
+        selectedRockOriginalColor = hitMesh.material.color.clone();
+        hitMesh.material.color.set(SELECT_COLOR);
+      }
+    }
+  }
 }
 
 function placeRock(x, z) {
@@ -482,10 +499,6 @@ function onCanvasMouseDown(event) {
   if (currentTool === 'sand') {
     isSandDrawing = true;
     handleSandDraw(event);
-  } else if (currentTool === 'moss') {
-    handleMossClick(event);
-  } else if (currentTool === 'select') {
-    handleSelectClick(event);
   }
 }
 
@@ -507,40 +520,6 @@ function handleSandDraw(event) {
   const hits = raycaster.intersectObject(sandMesh);
   if (hits.length > 0) {
     drawSandGroove(hits[0].point.x, hits[0].point.z);
-  }
-}
-
-function handleMossClick(event) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObject(sandMesh);
-  if (hits.length > 0) {
-    placeMoss(hits[0].point.x, hits[0].point.z);
-  }
-}
-
-function handleSelectClick(event) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  if (selectedRock) {
-    selectedRock.mesh.material.color.copy(selectedRockOriginalColor);
-    selectedRock = null;
-    selectedRockOriginalColor = null;
-  }
-  const rockMeshes = rocks.map(r => r.mesh);
-  const hits = raycaster.intersectObjects(rockMeshes);
-  if (hits.length > 0) {
-    const hitMesh = hits[0].object;
-    const rockData = rocks.find(r => r.mesh === hitMesh);
-    if (rockData) {
-      selectedRock = rockData;
-      selectedRockOriginalColor = hitMesh.material.color.clone();
-      hitMesh.material.color.set(SELECT_COLOR);
-    }
   }
 }
 
@@ -888,7 +867,7 @@ function createFukuokaAvatar() {
   tie.position.set(0, 1.15, 0.11);
   group.add(tie);
 
-  group.position.set(0, 0, 5);
+  group.position.set(0, 0, 4);
   scene.add(group);
   return group;
 }
@@ -1005,7 +984,7 @@ async function nameGarden() {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 1.0, maxOutputTokens: 30 }
         }),
-        signal: AbortSignal.timeout(3000)
+        signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(3000) : undefined
       }
     );
     if (!response.ok) throw new Error('API error');
