@@ -779,8 +779,10 @@ async function explainGarden() {
     const data = await callGemini({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.9, maxOutputTokens: 200 }
-    }, 5000);
-    const text = data.candidates[0].content.parts[0].text.trim();
+    }, 8000);
+    const parts = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    if (!parts || !parts[0] || !parts[0].text) throw new Error('no text');
+    const text = parts[0].text.trim();
     typewriteAIText(text);
     playBellSound();
   } catch (e) {
@@ -1080,7 +1082,9 @@ async function nameGarden() {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 1.0, maxOutputTokens: 30 }
     }, 3000);
-    let name = data.candidates[0].content.parts[0].text.trim();
+    const parts = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    if (!parts || !parts[0] || !parts[0].text) throw new Error('no text');
+    let name = parts[0].text.trim();
     // 「○○庭」形式に整形
     name = name.replace(/^[「『【\s]+|[」』】\s.]+$/g, '');
     if (name.length > 12) name = name.substring(0, 12);
