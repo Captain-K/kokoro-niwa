@@ -218,6 +218,7 @@ body {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 // === API KEY ===
 const API_KEY = 'YOUR_KEY_HERE';
@@ -380,11 +381,12 @@ function initScene() {
   // Resize handler
   window.addEventListener('resize', onResize);
 
-  // Mouse handlers for tools
-  renderer.domElement.addEventListener('mousedown', onCanvasMouseDown);
-  renderer.domElement.addEventListener('mousemove', onCanvasMouseMove);
-  renderer.domElement.addEventListener('mouseup', onCanvasMouseUp);
-  renderer.domElement.addEventListener('click', onCanvasClick);
+  // Mouse handlers for tools (capture phase to bypass OrbitControls)
+  const canvas = renderer.domElement;
+  canvas.addEventListener('pointerdown', onCanvasPointerDown, true);
+  canvas.addEventListener('pointermove', onCanvasPointerMove, true);
+  canvas.addEventListener('pointerup', onCanvasPointerUp, true);
+  canvas.addEventListener('click', onCanvasClick);
 
   // Prevent context menu on right-click
   renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
@@ -515,21 +517,23 @@ function addAutoCirclesAroundRock(rockData, rockIndex) {
   sandPatterns += ringCount;
 }
 
-function onCanvasMouseDown(event) {
+function onCanvasPointerDown(event) {
   if (event.button !== 0) return;
   if (currentTool === 'sand') {
     isSandDrawing = true;
     handleSandDraw(event);
+    event.stopPropagation(); // OrbitControlsに渡さない
   }
 }
 
-function onCanvasMouseMove(event) {
+function onCanvasPointerMove(event) {
   if (isSandDrawing && currentTool === 'sand') {
     handleSandDraw(event);
+    event.stopPropagation();
   }
 }
 
-function onCanvasMouseUp() {
+function onCanvasPointerUp(event) {
   isSandDrawing = false;
 }
 
@@ -823,156 +827,150 @@ document.getElementById('btn-reset').addEventListener('click', function() {
   setAIText('庭を新しくしました。また岩を置いてみてください。');
 });
 
-// === FUKUOKA AVATAR ===
-function createFukuokaAvatar() {
+// === FUKUOKA AVATAR (GLB) ===
+const gltfLoader = new THREE.GLTFLoader();
+let avatarMixer = null;
+let walkClip = null;
+let danceClip = null;
+let avatarModel = null;
+let avatarReady = false;
+let walkAction = null;
+let danceAction = null;
+
+// 事前読み込み
+function preloadAvatar() {
+  gltfLoader.load('rig/walk.glb', function(gltf) {
+    avatarModel = gltf.scene;
+    avatarModel.traverse(function(child) {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    walkClip = gltf.animations[0] || null;
+    avatarReady = true;
+  }, undefined, function(err) {
+    console.warn('walk.glb load failed, using fallback');
+  });
+
+  gltfLoader.load('rig/dance.glb', function(gltf) {
+    danceClip = gltf.animations[0] || null;
+  }, undefined, function(err) {
+    console.warn('dance.glb load failed');
+  });
+}
+
+// フォールバック（プリミティブ人型）
+function createFallbackAvatar() {
   const group = new THREE.Group();
   const skinColor = 0xf5d0a9;
-  const suitColor = 0x1a237e; // 濃紺（目立つ）
-  const hairColor = 0x3e2723;
-
-  // 頭
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.25, 14, 12),
-    new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.7 })
-  );
-  head.position.y = 1.75;
-  head.castShadow = true;
-  group.add(head);
-
-  // 目（黒い球で正面から見えるように）
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
-  const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), eyeMat);
-  leftEye.position.set(-0.08, 1.78, 0.2);
-  group.add(leftEye);
-  const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), eyeMat);
-  rightEye.position.set(0.08, 1.78, 0.2);
-  group.add(rightEye);
-
-  // 髪
-  const hair = new THREE.Mesh(
-    new THREE.SphereGeometry(0.26, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
-    new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.9 })
-  );
-  hair.position.y = 1.8;
-  group.add(hair);
-
-  // 体（スーツ）
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.7, 0.3),
-    new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 })
-  );
-  body.position.y = 1.2;
-  body.castShadow = true;
-  group.add(body);
-
-  // 腕
+  const suitColor = 0x1a237e;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 14, 12), new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.7 }));
+  head.position.y = 1.75; head.castShadow = true; group.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9 }));
+  hair.position.y = 1.8; group.add(hair);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 }));
+  body.position.y = 1.2; body.castShadow = true; group.add(body);
   const armGeo = new THREE.BoxGeometry(0.14, 0.55, 0.14);
   const armMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 });
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.position.set(-0.35, 1.2, 0);
-  leftArm.castShadow = true;
-  group.add(leftArm);
-  const rightArm = new THREE.Mesh(armGeo.clone(), armMat);
-  rightArm.position.set(0.35, 1.2, 0);
-  rightArm.castShadow = true;
-  group.add(rightArm);
-
-  // 脚
+  const la = new THREE.Mesh(armGeo, armMat); la.position.set(-0.35, 1.2, 0); la.castShadow = true; group.add(la);
+  const ra = new THREE.Mesh(armGeo.clone(), armMat); ra.position.set(0.35, 1.2, 0); ra.castShadow = true; group.add(ra);
   const legGeo = new THREE.BoxGeometry(0.16, 0.6, 0.16);
   const legMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 });
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.position.set(-0.13, 0.55, 0);
-  leftLeg.castShadow = true;
-  group.add(leftLeg);
-  const rightLeg = new THREE.Mesh(legGeo.clone(), legMat);
-  rightLeg.position.set(0.13, 0.55, 0);
-  rightLeg.castShadow = true;
-  group.add(rightLeg);
-
-  // ネクタイ（赤・目立つ）
-  const tie = new THREE.Mesh(
-    new THREE.BoxGeometry(0.08, 0.25, 0.04),
-    new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.6 })
-  );
-  tie.position.set(0, 1.25, 0.16);
-  group.add(tie);
-
-  // カメラの方向を向く（カメラは(5,5,5)にいる）
-  group.lookAt(5, 0, 5);
-
-  group.position.set(0, 0, 3.5);
-  group.scale.set(1.3, 1.3, 1.3);
-  scene.add(group);
+  const ll = new THREE.Mesh(legGeo, legMat); ll.position.set(-0.13, 0.55, 0); ll.castShadow = true; group.add(ll);
+  const rl = new THREE.Mesh(legGeo.clone(), legMat); rl.position.set(0.13, 0.55, 0); rl.castShadow = true; group.add(rl);
+  const tie = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.04), new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.6 }));
+  tie.position.set(0, 1.25, 0.16); group.add(tie);
   return group;
 }
 
 let avatarAnimPhase = 'none';
 let avatarAnimTime = 0;
 
-document.getElementById('btn-summon').addEventListener('click', function() {
-  if (fukuokaAvatar) {
-    scene.remove(fukuokaAvatar);
-    fukuokaAvatar = null;
+function startAvatarWalk() {
+  if (fukuokaAvatar) { scene.remove(fukuokaAvatar); fukuokaAvatar = null; }
+  avatarMixer = null; walkAction = null; danceAction = null;
+
+  if (avatarReady && avatarModel) {
+    fukuokaAvatar = avatarModel.clone();
+    // スケール調整（GLBモデルが大きすぎる場合）
+    fukuokaAvatar.scale.set(0.8, 0.8, 0.8);
+    fukuokaAvatar.position.set(0, 0, 3.5);
+    // カメラの方を向く
+    fukuokaAvatar.rotation.y = Math.atan2(5, 5);
+    scene.add(fukuokaAvatar);
+
+    if (walkClip) {
+      avatarMixer = new THREE.AnimationMixer(fukuokaAvatar);
+      walkAction = avatarMixer.clipAction(walkClip);
+      walkAction.play();
+    }
+  } else {
+    // フォールバック
+    fukuokaAvatar = createFallbackAvatar();
+    fukuokaAvatar.scale.set(1.3, 1.3, 1.3);
+    fukuokaAvatar.position.set(0, 0, 3.5);
+    fukuokaAvatar.lookAt(5, 0, 5);
+    scene.add(fukuokaAvatar);
   }
-  fukuokaAvatar = createFukuokaAvatar();
+
   avatarAnimPhase = 'walk';
   avatarAnimTime = 0;
   setAIText('福岡俊弘様がお見えになりました……');
   playBellSound();
-});
+}
+
+function startAvatarDance() {
+  if (!fukuokaAvatar) return;
+  if (danceClip && avatarMixer) {
+    if (walkAction) walkAction.stop();
+    danceAction = avatarMixer.clipAction(danceClip);
+    danceAction.setLoop(THREE.LoopRepeat);
+    danceAction.play();
+  }
+  avatarAnimPhase = 'dance';
+  avatarAnimTime = 0;
+  setAIText('福岡俊弘様、ブレイクダンスを披露！📸');
+}
+
+document.getElementById('btn-summon').addEventListener('click', startAvatarWalk);
 
 function updateAvatarAnimation(dt) {
   if (!fukuokaAvatar || avatarAnimPhase === 'none') return;
   avatarAnimTime += dt;
+  if (avatarMixer) avatarMixer.update(dt);
 
   if (avatarAnimPhase === 'walk') {
-    // 庭の中心（z=0）まで歩く
     const speed = 1.5;
     fukuokaAvatar.position.z -= speed * dt;
-    // 歩行アニメ（脚を揺らす）
-    const legSwing = Math.sin(avatarAnimTime * 8) * 0.3;
-    if (fukuokaAvatar.children[5]) fukuokaAvatar.children[5].rotation.x = legSwing;
-    if (fukuokaAvatar.children[6]) fukuokaAvatar.children[6].rotation.x = -legSwing;
-    // 腕も揺らす
-    if (fukuokaAvatar.children[3]) fukuokaAvatar.children[3].rotation.x = -legSwing * 0.5;
-    if (fukuokaAvatar.children[4]) fukuokaAvatar.children[4].rotation.x = legSwing * 0.5;
-
     if (fukuokaAvatar.position.z <= 1.0) {
       fukuokaAvatar.position.z = 1.0;
-      avatarAnimPhase = 'bow';
-      avatarAnimTime = 0;
-      // 脚の回転をリセット
-      if (fukuokaAvatar.children[5]) fukuokaAvatar.children[5].rotation.x = 0;
-      if (fukuokaAvatar.children[6]) fukuokaAvatar.children[6].rotation.x = 0;
-      if (fukuokaAvatar.children[3]) fukuokaAvatar.children[3].rotation.x = 0;
-      if (fukuokaAvatar.children[4]) fukuokaAvatar.children[4].rotation.x = 0;
-    }
-  } else if (avatarAnimPhase === 'bow') {
-    // 一礼（上半身を前に傾ける）
-    const bowDuration = 1.5;
-    const t = avatarAnimTime / bowDuration;
-    if (t < 0.5) {
-      // 前傾
-      const angle = (t / 0.5) * 0.6;
-      fukuokaAvatar.rotation.x = angle;
-    } else if (t < 1.0) {
-      // 起き上がり
-      const angle = (1 - (t - 0.5) / 0.5) * 0.6;
-      fukuokaAvatar.rotation.x = angle;
-    } else {
-      fukuokaAvatar.rotation.x = 0;
       avatarAnimPhase = 'idle';
+      if (walkAction) walkAction.paused = true;
       setAIText('心より、この庭を拝見いたしました。見事でございます。');
     }
+  } else if (avatarAnimPhase === 'dance') {
+    // ダンスアニメーションはmixerが自動再生、5秒後に終了
+    if (avatarAnimTime > 8) {
+      avatarAnimPhase = 'idle';
+      if (danceAction) danceAction.stop();
+      if (walkAction) { walkAction.paused = false; walkAction.play(); }
+      setAIText('素晴らしい演技でした。お見事！');
+    }
   } else if (avatarAnimPhase === 'idle') {
-    // 待機（微かに呼吸する）
     fukuokaAvatar.position.y = Math.sin(avatarAnimTime * 2) * 0.005;
   }
 }
 
-// === PHOTO (Screenshot) ===
+preloadAvatar();
+
+// === PHOTO (Screenshot + Dance) ===
 let shutterSound = null;
 document.getElementById('btn-photo').addEventListener('click', function() {
+  // アバターがいればブレイクダンス開始
+  if (fukuokaAvatar && avatarAnimPhase !== 'dance') {
+    startAvatarDance();
+  }
   // シャッター音
   if (!shutterSound) {
     shutterSound = new Audio('audio/shutter.mp3');
@@ -980,14 +978,16 @@ document.getElementById('btn-photo').addEventListener('click', function() {
   }
   shutterSound.currentTime = 0;
   shutterSound.play().catch(() => {});
-  // スクリーンショット
-  renderer.render(scene, camera);
-  const dataURL = renderer.domElement.toDataURL('image/png');
-  const link = document.createElement('a');
-  link.download = (gardenName || '心庭') + '_記念撮影.png';
-  link.href = dataURL;
-  link.click();
-  setAIText('記念撮影が保存されました。SNSでシェアしてください！');
+  // 少し待ってからスクリーンショット（ダンスポーズが決まった瞬間）
+  setTimeout(function() {
+    renderer.render(scene, camera);
+    const dataURL = renderer.domElement.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = (gardenName || '心庭') + '_記念撮影.png';
+    link.href = dataURL;
+    link.click();
+    setAIText('記念撮影が保存されました。SNSでシェアしてください！');
+  }, 800);
 });
 
 // === GARDEN NAMING ===
