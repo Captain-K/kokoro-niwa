@@ -1,0 +1,30 @@
+{
+  "allowedTools": [
+    "Edit",
+    "Write",
+    "Bash(npx *)",
+    "Bash(npm test)",
+    "Bash(npm run build)",
+    "Bash(npm run lint)",
+    "Bash(git add *)",
+    "Bash(git commit *)",
+    "Bash(git diff *)",
+    "Bash(git status)",
+    "Bash(git log *)",
+    "Bash(curl *)",
+    "Bash(docker compose *)",
+    "Bash(docker exec *)",
+    "Bash(sleep *)",
+    "Bash(python3 *)",
+    "Bash(ls *)",
+    "Bash(cat *)",
+    "Bash(mkdir *)",
+    "Bash(rm *)",
+    "Bash(find *)",
+    "Bash(cd *)",
+    "Bash(git push *)",
+    "Bash(git checkout *)",
+    "Bash(npm install *)",
+    "Bash(npm run dev)"
+  ]
+}

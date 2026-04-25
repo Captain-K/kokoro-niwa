@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心庭 — こころにわ</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* === RESET & BASE === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: #f5f0e8;
+  color: #2c2c2c;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === HEADER === */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  background: #f5f0e8;
+  border-bottom: 1px solid #d4c9b8;
+  z-index: 10;
+  position: relative;
+}
+.header-title {
+  font-family: 'Noto Serif JP', serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: #2c2c2c;
+  letter-spacing: 0.15em;
+}
+.header-subtitle {
+  font-family: 'Noto Serif JP', serif;
+  font-weight: 400;
+  font-size: 12px;
+  color: #7a6a5a;
+  margin-left: 12px;
+}
+.header-actions {
+  position: absolute;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+.header-btn {
+  background: none;
+  border: 1px solid #c4b8a6;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #7a6a5a;
+  transition: background 0.2s;
+}
+.header-btn:hover { background: #e8e0d2; }
+
+/* === CANVAS AREA === */
+#canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+#canvas-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 操作ヒント */
+.hint {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #7a6a5a;
+  background: rgba(245,240,232,0.85);
+  padding: 4px 14px;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 5;
+  white-space: nowrap;
+  transition: opacity 0.3s;
+}
+/* ミュートボタン */
+#btn-mute {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(245,240,232,0.85);
+  border: 1px solid #d4c9b8;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  z-index: 5;
+}
+
+/* === TOOLBAR === */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #f5f0e8;
+  border-top: 1px solid #d4c9b8;
+  z-index: 10;
+}
+.tool-btn {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  padding: 6px 14px;
+  border: 1px solid #c4b8a6;
+  border-radius: 6px;
+  background: #faf6ef;
+  color: #5a4a3a;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+.tool-btn:hover { background: #e8e0d2; }
+.tool-btn.active {
+  background: #a23d2a;
+  color: #fff;
+  border-color: #a23d2a;
+}
+.tool-separator {
+  width: 1px;
+  height: 24px;
+  background: #d4c9b8;
+  margin: 0 4px;
+}
+
+/* === AI SPEECH BUBBLE === */
+.ai-bubble {
+  padding: 10px 20px;
+  background: #faf6ef;
+  border-top: 1px solid #d4c9b8;
+  font-family: 'Noto Serif JP', serif;
+  font-size: 14px;
+  color: #5a4a3a;
+  line-height: 1.8;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.ai-text {
+  flex: 1;
+}
+
+/* === GARDEN NAME === */
+#garden-name-display {
+  text-align: center;
+  font-family: 'Noto Serif JP', serif;
+  font-size: 16px;
+  color: #7a6a5a;
+  padding: 2px 0;
+  min-height: 24px;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header" id="header">
+  <span class="header-title">心庭</span>
+  <span class="header-subtitle">— こころにわ —</span>
+  <div class="header-actions">
+    <button class="header-btn" id="btn-help" title="ヘルプ">?</button>
+    <button class="header-btn" id="btn-share" title="共有">共有</button>
+  </div>
+</div>
+
+<!-- GARDEN NAME -->
+<div id="garden-name-display"></div>
+
+<!-- 3D CANVAS -->
+<div id="canvas-container">
+  <div class="hint" id="hint">左クリック: 岩を置く ／ 右ドラッグ: 回転 ／ スクロール: ズーム</div>
+  <button id="btn-mute" title="BGM ON/OFF">🔊</button>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar" id="toolbar">
+  <button class="tool-btn active" data-tool="rock">🪨 岩</button>
+  <button class="tool-btn" data-tool="sand">🌀 砂紋</button>
+  <button class="tool-btn" data-tool="moss">🌿 苔</button>
+  <div class="tool-separator"></div>
+  <button class="tool-btn" data-tool="select">👆 選択</button>
+  <button class="tool-btn" id="btn-reset">🔄 リセット</button>
+  <div class="tool-separator"></div>
+  <button class="tool-btn" id="btn-ai-explain">🧙 AI解説</button>
+  <button class="tool-btn" id="btn-summon">👤 福岡さん召喚</button>
+  <button class="tool-btn" id="btn-photo">📸 撮影</button>
+</div>
+
+<!-- AI BUBBLE -->
+<div class="ai-bubble">
+  <span class="ai-icon">🧙</span>
+  <span class="ai-text" id="ai-text">庭を作る準備ができました。岩を置いてみてください。</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// === API KEY ===
+const API_KEY = 'YOUR_KEY_HERE';
+
+// === GAME PARAMETERS ===
+const SAND_SIZE = 8;                // 砂地の一辺の長さ
+const SAND_SEGMENTS = 128;          // 砂地の分割数（大きいほど砂紋が滑らか）
+const SAND_COLOR = 0xede4cf;        // 砂地の色
+const FRAME_COLOR = 0x3e2723;       // 木枠の色
+const FRAME_HEIGHT = 0.2;           // 木枠の高さ
+const FRAME_WIDTH = 0.3;            // 木枠の厚さ
+const BG_COLOR = 0xf5f0e8;          // 背景色
+const CAM_FOV = 50;                 // カメラ視野角
+const CAM_NEAR = 0.1;               // カメラ近クリップ
+const CAM_FAR = 100;                // カメラ遠クリップ
+const CAM_INIT_X = 5;              // カメラ初期位置X
+const CAM_INIT_Y = 5;              // カメラ初期位置Y
+const CAM_INIT_Z = 5;              // カメラ初期位置Z
+const ORBIT_MIN = 3;                // ズーム最小距離
+const ORBIT_MAX = 15;               // ズーム最大距離
+const ORBIT_MAX_POLAR = 1.5;        // 極角上限（地面より下を防ぐ）
+const SUN_INTENSITY = 1.0;          // 太陽光の強さ
+const SUN_X = 5;                    // 太陽光位置X
+const SUN_Y = 10;                   // 太陽光位置Y
+const SUN_Z = 5;                    // 太陽光位置Z
+const AMBIENT_INTENSITY = 0.4;      // 環境光の強さ
+const ROCK_MIN_RADIUS = 0.3;        // 岩の最小サイズ
+const ROCK_MAX_RADIUS = 0.6;        // 岩の最大サイズ
+const ROCK_MIN_SCALE = 0.7;         // 岩の最小スケール
+const ROCK_MAX_SCALE = 1.3;         // 岩の最大スケール
+const ROCK_COLOR_MIN = 0x6b6760;    // 岩の色（暗い方）
+const ROCK_COLOR_MAX = 0x8a7f72;    // 岩の色（明るい方）
+const MAX_ROCKS = 20;               // 岩の最大配置数
+const SAND_DEFORM_RADIUS = 0.3;    // 砂紋の影響半径（大きいほど太い線）
+const SAND_DEFORM_DEPTH = -0.08;   // 砂紋の最大凹み量
+const MOSS_COLOR = 0x4a6b3a;       // 苔の色
+const MOSS_RADIUS = 0.12;          // 苔の球のサイズ
+const MOSS_CLUSTER_SIZE = 5;       // 苔1箇所あたりの球の数
+const SELECT_COLOR = 0xa23d2a;     // 選択中のハイライト色
+
+// === STATE ===
+let currentTool = 'rock';
+let gardenName = '';
+let rocks = [];
+let sandPatterns = 0;
+let mossObjects = [];
+let scene, camera, renderer, controls;
+let sandMesh, sandGeometry;
+let animationId = null;
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
+let isDragging = false;
+let isSandDrawing = false;
+let selectedRock = null;
+let selectedRockOriginalColor = null;
+let fukuokaAvatar = null;
+let autoCirclesAdded = new Set(); // 岩の周囲に自動砂紋を追加済みか追跡
+
+// === THREE.JS INIT ===
+function initScene() {
+  const container = document.getElementById('canvas-container');
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+
+  // Scene
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(BG_COLOR);
+
+  // Camera
+  camera = new THREE.PerspectiveCamera(CAM_FOV, w / h, CAM_NEAR, CAM_FAR);
+  camera.position.set(CAM_INIT_X, CAM_INIT_Y, CAM_INIT_Z);
+  camera.lookAt(0, 0, 0);
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  container.appendChild(renderer.domElement);
+
+  // Lights
+  const dirLight = new THREE.DirectionalLight(0xffffff, SUN_INTENSITY);
+  dirLight.position.set(SUN_X, SUN_Y, SUN_Z);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 2048;
+  dirLight.shadow.mapSize.height = 2048;
+  dirLight.shadow.camera.near = 0.5;
+  dirLight.shadow.camera.far = 30;
+  dirLight.shadow.camera.left = -6;
+  dirLight.shadow.camera.right = 6;
+  dirLight.shadow.camera.top = 6;
+  dirLight.shadow.camera.bottom = -6;
+  scene.add(dirLight);
+
+  const ambLight = new THREE.AmbientLight(0xffffff, AMBIENT_INTENSITY);
+  scene.add(ambLight);
+
+  // Sand plane
+  sandGeometry = new THREE.PlaneGeometry(SAND_SIZE, SAND_SIZE, SAND_SEGMENTS, SAND_SEGMENTS);
+  sandGeometry.rotateX(-Math.PI / 2);
+  const sandMaterial = new THREE.MeshStandardMaterial({
+    color: SAND_COLOR,
+    roughness: 0.9,
+    metalness: 0.0
+  });
+  sandMesh = new THREE.Mesh(sandGeometry, sandMaterial);
+  sandMesh.receiveShadow = true;
+  scene.add(sandMesh);
+
+  // Wooden frame (4 sides)
+  const frameMat = new THREE.MeshStandardMaterial({ color: FRAME_COLOR, roughness: 0.85 });
+  const half = SAND_SIZE / 2;
+
+  const frameConfigs = [
+    { w: SAND_SIZE + FRAME_WIDTH * 2, h: FRAME_HEIGHT, d: FRAME_WIDTH, x: 0, z: -half - FRAME_WIDTH / 2 },
+    { w: SAND_SIZE + FRAME_WIDTH * 2, h: FRAME_HEIGHT, d: FRAME_WIDTH, x: 0, z: half + FRAME_WIDTH / 2 },
+    { w: FRAME_WIDTH, h: FRAME_HEIGHT, d: SAND_SIZE, x: -half - FRAME_WIDTH / 2, z: 0 },
+    { w: FRAME_WIDTH, h: FRAME_HEIGHT, d: SAND_SIZE, x: half + FRAME_WIDTH / 2, z: 0 }
+  ];
+  frameConfigs.forEach(cfg => {
+    const geo = new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d);
+    const mesh = new THREE.Mesh(geo, frameMat);
+    mesh.position.set(cfg.x, cfg.h / 2, cfg.z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  });
+
+  // OrbitControls — right-click drag to rotate, scroll to zoom
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.minDistance = ORBIT_MIN;
+  controls.maxDistance = ORBIT_MAX;
+  controls.maxPolarAngle = ORBIT_MAX_POLAR;
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0, 0);
+  controls.mouseButtons = {
+    LEFT: null,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.ROTATE
+  };
+  controls.touches = {
+    ONE: null,
+    TWO: THREE.TOUCH.DOLLY_ROTATE
+  };
+
+  // Resize handler
+  window.addEventListener('resize', onResize);
+
+  // Mouse handlers for tools
+  renderer.domElement.addEventListener('mousedown', onCanvasMouseDown);
+  renderer.domElement.addEventListener('mousemove', onCanvasMouseMove);
+  renderer.domElement.addEventListener('mouseup', onCanvasMouseUp);
+  renderer.domElement.addEventListener('click', onCanvasClick);
+
+  // Prevent context menu on right-click
+  renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function onCanvasClick(event) {
+  if (currentTool !== 'rock') return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(sandMesh);
+  if (hits.length === 0) return;
+
+  const point = hits[0].point;
+  placeRock(point.x, point.z);
+}
+
+function placeRock(x, z) {
+  if (rocks.length >= MAX_ROCKS) {
+    setAIText('これ以上は置けません。まずは今の庭を味わってみてください。');
+    return;
+  }
+
+  const radius = ROCK_MIN_RADIUS + Math.random() * (ROCK_MAX_RADIUS - ROCK_MIN_RADIUS);
+  const geo = new THREE.IcosahedronGeometry(radius, 0);
+
+  const cMin = new THREE.Color(ROCK_COLOR_MIN);
+  const cMax = new THREE.Color(ROCK_COLOR_MAX);
+  const rockColor = cMin.clone().lerp(cMax, Math.random());
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: rockColor,
+    roughness: 0.9,
+    flatShading: true
+  });
+
+  const rock = new THREE.Mesh(geo, mat);
+  rock.position.set(x, radius * 0.4, z);
+  rock.rotation.y = Math.random() * Math.PI * 2;
+
+  const s = ROCK_MIN_SCALE + Math.random() * (ROCK_MAX_SCALE - ROCK_MIN_SCALE);
+  rock.scale.set(s, s * (0.6 + Math.random() * 0.4), s);
+
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  scene.add(rock);
+
+  rocks.push({ mesh: rock, x: x, z: z, size: radius * s });
+  playRockSound();
+  // 岩の周囲に自動で同心円砂紋を追加
+  addAutoCirclesAroundRock({ x: x, z: z, size: radius * s }, rocks.length - 1);
+}
+
+// === SAND PATTERN DRAWING ===
+function deformSand(cx, cz, radius, depth) {
+  const pos = sandGeometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i);
+    const vz = pos.getZ(i);
+    const dx = vx - cx;
+    const dz = vz - cz;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < radius) {
+      const t = 1 - dist / radius;
+      const currentY = pos.getY(i);
+      pos.setY(i, currentY + depth * t * t);
+    }
+  }
+  pos.needsUpdate = true;
+  sandGeometry.computeVertexNormals();
+}
+
+function drawSandGroove(cx, cz) {
+  deformSand(cx, cz, SAND_DEFORM_RADIUS, SAND_DEFORM_DEPTH);
+  sandPatterns++;
+  playSandSound();
+}
+
+function addAutoCirclesAroundRock(rockData, rockIndex) {
+  if (autoCirclesAdded.has(rockIndex)) return;
+  autoCirclesAdded.add(rockIndex);
+  const half = SAND_SIZE / 2;
+  const ringCount = 3 + Math.floor(Math.random() * 3);
+  for (let r = 0; r < ringCount; r++) {
+    const ringRadius = rockData.size * 1.5 + r * 0.4;
+    const grooveWidth = 0.05 + Math.random() * 0.03;
+    const grooveDepth = -0.02 - Math.random() * 0.02;
+    const segments = 64;
+    for (let s = 0; s < segments; s++) {
+      const angle = (s / segments) * Math.PI * 2;
+      const gx = rockData.x + Math.cos(angle) * ringRadius;
+      const gz = rockData.z + Math.sin(angle) * ringRadius;
+      if (Math.abs(gx) < half - 0.1 && Math.abs(gz) < half - 0.1) {
+        deformSand(gx, gz, grooveWidth, grooveDepth);
+      }
+    }
+  }
+  sandPatterns += ringCount;
+}
+
+function onCanvasMouseDown(event) {
+  if (event.button !== 0) return;
+  if (currentTool === 'sand') {
+    isSandDrawing = true;
+    handleSandDraw(event);
+  } else if (currentTool === 'moss') {
+    handleMossClick(event);
+  } else if (currentTool === 'select') {
+    handleSelectClick(event);
+  }
+}
+
+function onCanvasMouseMove(event) {
+  if (isSandDrawing && currentTool === 'sand') {
+    handleSandDraw(event);
+  }
+}
+
+function onCanvasMouseUp() {
+  isSandDrawing = false;
+}
+
+function handleSandDraw(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(sandMesh);
+  if (hits.length > 0) {
+    drawSandGroove(hits[0].point.x, hits[0].point.z);
+  }
+}
+
+function handleMossClick(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(sandMesh);
+  if (hits.length > 0) {
+    placeMoss(hits[0].point.x, hits[0].point.z);
+  }
+}
+
+function handleSelectClick(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  if (selectedRock) {
+    selectedRock.mesh.material.color.copy(selectedRockOriginalColor);
+    selectedRock = null;
+    selectedRockOriginalColor = null;
+  }
+  const rockMeshes = rocks.map(r => r.mesh);
+  const hits = raycaster.intersectObjects(rockMeshes);
+  if (hits.length > 0) {
+    const hitMesh = hits[0].object;
+    const rockData = rocks.find(r => r.mesh === hitMesh);
+    if (rockData) {
+      selectedRock = rockData;
+      selectedRockOriginalColor = hitMesh.material.color.clone();
+      hitMesh.material.color.set(SELECT_COLOR);
+    }
+  }
+}
+
+function placeMoss(x, z) {
+  const group = new THREE.Group();
+  for (let i = 0; i < MOSS_CLUSTER_SIZE; i++) {
+    const r = MOSS_RADIUS * (0.5 + Math.random() * 0.8);
+    const geo = new THREE.SphereGeometry(r, 8, 6);
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(MOSS_COLOR).offsetHSL(0, 0, (Math.random() - 0.5) * 0.1),
+      roughness: 1.0
+    });
+    const ball = new THREE.Mesh(geo, mat);
+    ball.position.set(
+      (Math.random() - 0.5) * 0.3,
+      r * 0.3,
+      (Math.random() - 0.5) * 0.3
+    );
+    ball.castShadow = true;
+    group.add(ball);
+  }
+  group.position.set(x, 0, z);
+  scene.add(group);
+  mossObjects.push({ group: group, x: x, z: z });
+  playMossSound();
+}
+
+// === AUDIO (Web Audio API) ===
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playRockSound() {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(220, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.15);
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.2);
+}
+
+function playSandSound() {
+  const ctx = getAudioCtx();
+  const bufferSize = ctx.sampleRate * 0.08;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.06, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 2000;
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
+}
+
+function playMossSound() {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.1, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.15);
+}
+
+function onResize() {
+  const container = document.getElementById('canvas-container');
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+// === ANIMATION LOOP ===
+let lastTime = 0;
+function animate(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+  lastTime = timestamp;
+  if (controls) controls.update();
+  updateAvatarAnimation(dt);
+  renderer.render(scene, camera);
+  animationId = requestAnimationFrame(animate);
+}
+
+// === TOOL SWITCHING ===
+const HINTS = {
+  rock: '左クリック: 岩を置く ／ 右ドラッグ: 回転 ／ スクロール: ズーム',
+  sand: '左ドラッグ: 砂紋を描く ／ 右ドラッグ: 回転',
+  moss: '左クリック: 苔を置く ／ 右ドラッグ: 回転',
+  select: '右ドラッグ: 回転 ／ スクロール: ズーム'
+};
+document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTool = btn.dataset.tool;
+    const container = document.getElementById('canvas-container');
+    container.style.cursor = currentTool === 'sand' ? 'crosshair' : 'default';
+    document.getElementById('hint').textContent = HINTS[currentTool] || '';
+  });
+});
+
+// === AI TEXT HELPER ===
+function setAIText(text) {
+  document.getElementById('ai-text').textContent = text;
+}
+
+function typewriteAIText(text, speed) {
+  speed = speed || 50;
+  const el = document.getElementById('ai-text');
+  el.textContent = '';
+  let i = 0;
+  function next() {
+    if (i < text.length) {
+      el.textContent += text[i];
+      i++;
+      setTimeout(next, speed);
+    }
+  }
+  next();
+}
+
+// === AI EXPLANATION (Gemini API) ===
+const FALLBACK_EXPLANATIONS = [
+  "静寂の中に、確かな存在感がございますな。",
+  "この配置、何か語りたげに見えます。",
+  "庭は心を映す鏡。見事でございます。",
+  "石の間に、目に見えぬ線が引かれておりますな。",
+  "余白こそ、庭の真髄でございます。",
+  "岩は山、砂は海。この対比が実に美しい。",
+  "一点の動きが、全体に命を与えております。",
+  "この庭、深く静かな呼吸を感じます。",
+  "石が語りかけ、砂が耳を傾ける。そんな調和。",
+  "無の中に、すべてが宿っておりますな。"
+];
+
+let aiAbortController = null;
+let aiBusy = false;
+
+async function explainGarden() {
+  if (aiBusy) {
+    if (aiAbortController) aiAbortController.abort();
+  }
+  aiBusy = true;
+  setAIText('……');
+
+  const sceneState = {
+    rocks: rocks.map(r => ({ x: r.x, z: r.z, size: r.size })),
+    sandPatterns: sandPatterns,
+    mossCount: mossObjects.length
+  };
+
+  const prompt = buildExplainPrompt(sceneState);
+
+  if (API_KEY === 'YOUR_KEY_HERE' || !API_KEY) {
+    setTimeout(() => {
+      const msg = FALLBACK_EXPLANATIONS[Math.floor(Math.random() * FALLBACK_EXPLANATIONS.length)];
+      typewriteAIText(msg);
+      playBellSound();
+      aiBusy = false;
+    }, 600);
+    return;
+  }
+
+  aiAbortController = new AbortController();
+
+  try {
+    const timeoutId = setTimeout(() => aiAbortController.abort(), 5000);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.9, maxOutputTokens: 200 }
+        }),
+        signal: aiAbortController.signal
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text.trim();
+    typewriteAIText(text);
+    playBellSound();
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    const msg = FALLBACK_EXPLANATIONS[Math.floor(Math.random() * FALLBACK_EXPLANATIONS.length)];
+    typewriteAIText(msg);
+    playBellSound();
+  } finally {
+    aiBusy = false;
+  }
+}
+
+function buildExplainPrompt(state) {
+  const rockLines = state.rocks.length > 0
+    ? state.rocks.map(r => `  (${r.x.toFixed(1)}, ${r.z.toFixed(1)}) サイズ${r.size.toFixed(1)}`).join('\n')
+    : '  なし';
+  return `あなたは禅寺の老師です。以下の枯山水の配置を見て、2〜3文で庭の意味を詩的に解説してください。
+専門用語を使いすぎず、でも格調高い日本語で。優しく、でも含蓄のある口調で。
+
+岩の数: ${state.rocks.length}個
+岩の配置（x, z座標、サイズ）:
+${rockLines}
+砂紋の本数: ${state.sandPatterns}本
+苔の数: ${state.mossCount}個
+
+2〜3文のみで返答してください。「」などの括弧は不要。`;
+}
+
+// === BELL SOUND ===
+function playBellSound() {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.8);
+  gain.gain.setValueAtTime(0.15, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 1.2);
+}
+
+// === BUTTON HANDLERS ===
+document.getElementById('btn-ai-explain').addEventListener('click', function() { explainGarden(); });
+
+// === RESET ===
+document.getElementById('btn-reset').addEventListener('click', function() {
+  // 岩を削除
+  rocks.forEach(r => scene.remove(r.mesh));
+  rocks = [];
+  autoCirclesAdded.clear();
+  // 苔を削除
+  mossObjects.forEach(m => scene.remove(m.group));
+  mossObjects = [];
+  // 砂紋をリセット（頂点を平坦に）
+  const pos = sandGeometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setY(i, 0);
+  }
+  pos.needsUpdate = true;
+  sandGeometry.computeVertexNormals();
+  sandPatterns = 0;
+  // 選択解除
+  selectedRock = null;
+  selectedRockOriginalColor = null;
+  // アバター削除
+  if (fukuokaAvatar) {
+    scene.remove(fukuokaAvatar);
+    fukuokaAvatar = null;
+  }
+  // 庭名リセット
+  gardenName = '';
+  document.getElementById('garden-name-display').textContent = '';
+  setAIText('庭を新しくしました。また岩を置いてみてください。');
+});
+
+// === FUKUOKA AVATAR ===
+function createFukuokaAvatar() {
+  const group = new THREE.Group();
+  const skinColor = 0xf5d0a9;
+  const suitColor = 0x2c2c2c;
+  const hairColor = 0x3e2723;
+
+  // 頭
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 12, 10),
+    new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 })
+  );
+  head.position.y = 1.55;
+  head.castShadow = true;
+  group.add(head);
+
+  // 髪
+  const hair = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.9 })
+  );
+  hair.position.y = 1.58;
+  group.add(hair);
+
+  // 体（スーツ）
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.5, 0.2),
+    new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.8 })
+  );
+  body.position.y = 1.1;
+  body.castShadow = true;
+  group.add(body);
+
+  // 腕
+  const armGeo = new THREE.BoxGeometry(0.1, 0.4, 0.1);
+  const armMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.8 });
+  const leftArm = new THREE.Mesh(armGeo, armMat);
+  leftArm.position.set(-0.25, 1.1, 0);
+  leftArm.castShadow = true;
+  group.add(leftArm);
+  const rightArm = new THREE.Mesh(armGeo.clone(), armMat);
+  rightArm.position.set(0.25, 1.1, 0);
+  rightArm.castShadow = true;
+  group.add(rightArm);
+
+  // 脚
+  const legGeo = new THREE.BoxGeometry(0.12, 0.45, 0.12);
+  const legMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.8 });
+  const leftLeg = new THREE.Mesh(legGeo, legMat);
+  leftLeg.position.set(-0.1, 0.6, 0);
+  leftLeg.castShadow = true;
+  group.add(leftLeg);
+  const rightLeg = new THREE.Mesh(legGeo.clone(), legMat);
+  rightLeg.position.set(0.1, 0.6, 0);
+  rightLeg.castShadow = true;
+  group.add(rightLeg);
+
+  // ネクタイ
+  const tie = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 0.2, 0.03),
+    new THREE.MeshStandardMaterial({ color: 0xa23d2a, roughness: 0.7 })
+  );
+  tie.position.set(0, 1.15, 0.11);
+  group.add(tie);
+
+  group.position.set(0, 0, 5);
+  scene.add(group);
+  return group;
+}
+
+let avatarAnimPhase = 'none';
+let avatarAnimTime = 0;
+
+document.getElementById('btn-summon').addEventListener('click', function() {
+  if (fukuokaAvatar) {
+    scene.remove(fukuokaAvatar);
+    fukuokaAvatar = null;
+  }
+  fukuokaAvatar = createFukuokaAvatar();
+  avatarAnimPhase = 'walk';
+  avatarAnimTime = 0;
+  setAIText('福岡俊弘様がお見えになりました……');
+  playBellSound();
+});
+
+function updateAvatarAnimation(dt) {
+  if (!fukuokaAvatar || avatarAnimPhase === 'none') return;
+  avatarAnimTime += dt;
+
+  if (avatarAnimPhase === 'walk') {
+    // 庭の中心（z=0）まで歩く
+    const speed = 1.5;
+    fukuokaAvatar.position.z -= speed * dt;
+    // 歩行アニメ（脚を揺らす）
+    const legSwing = Math.sin(avatarAnimTime * 8) * 0.3;
+    if (fukuokaAvatar.children[5]) fukuokaAvatar.children[5].rotation.x = legSwing;
+    if (fukuokaAvatar.children[6]) fukuokaAvatar.children[6].rotation.x = -legSwing;
+    // 腕も揺らす
+    if (fukuokaAvatar.children[3]) fukuokaAvatar.children[3].rotation.x = -legSwing * 0.5;
+    if (fukuokaAvatar.children[4]) fukuokaAvatar.children[4].rotation.x = legSwing * 0.5;
+
+    if (fukuokaAvatar.position.z <= 0.5) {
+      fukuokaAvatar.position.z = 0.5;
+      avatarAnimPhase = 'bow';
+      avatarAnimTime = 0;
+      // 脚の回転をリセット
+      if (fukuokaAvatar.children[5]) fukuokaAvatar.children[5].rotation.x = 0;
+      if (fukuokaAvatar.children[6]) fukuokaAvatar.children[6].rotation.x = 0;
+      if (fukuokaAvatar.children[3]) fukuokaAvatar.children[3].rotation.x = 0;
+      if (fukuokaAvatar.children[4]) fukuokaAvatar.children[4].rotation.x = 0;
+    }
+  } else if (avatarAnimPhase === 'bow') {
+    // 一礼（上半身を前に傾ける）
+    const bowDuration = 1.5;
+    const t = avatarAnimTime / bowDuration;
+    if (t < 0.5) {
+      // 前傾
+      const angle = (t / 0.5) * 0.6;
+      fukuokaAvatar.rotation.x = angle;
+    } else if (t < 1.0) {
+      // 起き上がり
+      const angle = (1 - (t - 0.5) / 0.5) * 0.6;
+      fukuokaAvatar.rotation.x = angle;
+    } else {
+      fukuokaAvatar.rotation.x = 0;
+      avatarAnimPhase = 'idle';
+      setAIText('心より、この庭を拝見いたしました。見事でございます。');
+    }
+  } else if (avatarAnimPhase === 'idle') {
+    // 待機（微かに呼吸する）
+    fukuokaAvatar.position.y = Math.sin(avatarAnimTime * 2) * 0.005;
+  }
+}
+
+// === PHOTO (Screenshot) ===
+document.getElementById('btn-photo').addEventListener('click', function() {
+  renderer.render(scene, camera);
+  const dataURL = renderer.domElement.toDataURL('image/png');
+  const link = document.createElement('a');
+  link.download = (gardenName || '心庭') + '_記念撮影.png';
+  link.href = dataURL;
+  link.click();
+  setAIText('記念撮影が保存されました。SNSでシェアしてください！');
+});
+
+// === GARDEN NAMING ===
+const FALLBACK_NAMES = [
+  '静寂庭', '悟りの庭', '枯山水庭', '無心庭',
+  '明月庭', '清風庭', '白雲庭', '翠苔庭',
+  '寂然庭', '和敬庭', '一如庭', '幽玄庭'
+];
+
+async function nameGarden() {
+  const sceneState = {
+    rocks: rocks.map(r => ({ x: r.x, z: r.z, size: r.size })),
+    sandPatterns: sandPatterns,
+    mossCount: mossObjects.length
+  };
+
+  const prompt = `あなたは禅寺の老師です。以下の枯山水に詩的な名前を付けてください。
+「○○庭」の形式で、8文字以内。名前だけを返してください。他の説明は不要。
+
+岩の数: ${sceneState.rocks.length}個
+砂紋の本数: ${sceneState.sandPatterns}本
+苔の数: ${sceneState.mossCount}個`;
+
+  if (API_KEY === 'YOUR_KEY_HERE' || !API_KEY) {
+    gardenName = FALLBACK_NAMES[Math.floor(Math.random() * FALLBACK_NAMES.length)];
+    document.getElementById('garden-name-display').textContent = '「' + gardenName + '」';
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.0, maxOutputTokens: 30 }
+        }),
+        signal: AbortSignal.timeout(3000)
+      }
+    );
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    let name = data.candidates[0].content.parts[0].text.trim();
+    // 「○○庭」形式に整形
+    name = name.replace(/^[「『【\s]+|[」』】\s.]+$/g, '');
+    if (name.length > 12) name = name.substring(0, 12);
+    gardenName = name;
+  } catch (e) {
+    gardenName = FALLBACK_NAMES[Math.floor(Math.random() * FALLBACK_NAMES.length)];
+  }
+  document.getElementById('garden-name-display').textContent = '「' + gardenName + '」';
+}
+
+// AI解説後に自動で庭の命名も行うよう拡張
+// explainGardenのfinallyでaiBusy=falseになった後に命名
+const _origExplain = explainGarden;
+explainGarden = async function() {
+  await _origExplain();
+  if (rocks.length > 0 && !gardenName) {
+    nameGarden();
+  }
+};
+
+// === SHARE BUTTON ===
+document.getElementById('btn-share').addEventListener('click', function() {
+  const text = gardenName
+    ? '心庭「' + gardenName + '」を作りました！ #心庭 #枯山水 #AIハッカソン'
+    : '心庭で枯山水を作っています！ #心庭 #枯山水 #AIハッカソン';
+  if (navigator.share) {
+    navigator.share({ title: '心庭 — こころにわ', text: text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      setAIText('SNS投稿文をコピーしました！');
+    }).catch(() => {
+      setAIText('共有: ' + text);
+    });
+  }
+});
+
+// === HELP ===
+document.getElementById('btn-help').addEventListener('click', function() {
+  setAIText('🪨岩ツール: クリックで岩を置く / 🌀砂紋ツール: ドラッグで模様を描く / 🌿苔ツール: クリックで苔を置く / 👆選択ツール: 岩をクリックで選択 / 右ドラッグでカメラ回転、スクロールでズーム');
+});
+
+// === BGM ===
+let bgmAudio = null;
+let bgmMuted = false;
+
+function startBGM() {
+  if (bgmAudio) return;
+  bgmAudio = new Audio('audio/karesansui_bgm.mp3');
+  bgmAudio.loop = true;
+  bgmAudio.volume = 0.3;
+  bgmAudio.play().catch(() => {});
+}
+
+function toggleMute() {
+  if (!bgmAudio) { startBGM(); return; }
+  bgmMuted = !bgmMuted;
+  bgmAudio.muted = bgmMuted;
+  document.getElementById('btn-mute').textContent = bgmMuted ? '🔇' : '🔊';
+}
+
+document.getElementById('btn-mute').addEventListener('click', toggleMute);
+
+// Start BGM on first user interaction
+document.addEventListener('click', function firstClick() {
+  startBGM();
+  document.removeEventListener('click', firstClick);
+}, { once: true });
+
+// === INIT ===
+initScene();
+animate(0);
+</script>
+</body>
+</html>
